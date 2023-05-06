@@ -1,0 +1,898 @@
+---
+title: "Frameworks II - Final Project - Clustering and Time Series Analysis of Spotify
+  Data"
+author: "Nishita George, Kenza Nekmouche, Kartikeya Chaturvedi, N S Aaditya Kodali"
+date: "2023-04-18"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+## Spotify Web API key
+```{r}
+library(reticulate)
+py_install("pandas")
+py_install("spotipy")
+```
+
+```{python}
+import os
+import numpy as np
+import pandas as pd
+
+directory =  'C:/Users/adity/Documents/Spring_2023/Frameworks 2/Project_Spotify_data/'
+top_200_tracks = pd.read_csv(os.path.join(directory,'global_weekly_top_200_2017to2020.csv'))
+```
+
+```{python}
+import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials
+cid = "dc06138ac9e74bc2bb6a08864b7c3102"
+secret = "a2a8002a3b684d70bc7e63aa1197b14d"
+client_credentials_manager = SpotifyClientCredentials(client_id=cid, client_secret=secret)
+sp = spotipy.Spotify(client_credentials_manager = client_credentials_manager)
+```
+
+### Creating a new dataframe with Track attributes
+```{python}
+artist_name = []
+album_id = []
+album_name = []
+track_name = []
+popularity = []
+track_id = []
+track_uri = []
+date_release = []
+
+track_ids_list = list(top_200_tracks['track_id'])
+len(track_ids_list)
+```
+
+```{python}
+for i in range(0,len(track_ids_list),50):
+ data = track_ids_list[i:i + 50]
+ tracks_df = sp.tracks(data)
+ for idx, track in enumerate(tracks_df['tracks']):
+  artist_name.append(track['artists'][0]['name'])
+  album_id.append(track['album']['id'])
+  album_name.append(track['album']['name'])
+  track_name.append(track['name'])
+  popularity.append(track['popularity'])
+  track_id.append(track['id'])
+  track_uri.append(track['uri'])
+  date_release.append(track['album']['release_date'])
+  
+tracks_dataframe = pd.DataFrame({'track_id' : track_id, 'track_uri' : track_uri, 'artist_name' : artist_name, 'album_id': album_id, 'album_name': album_name, 'track_name' : track_name, 'popularity' : popularity, 'date_release':date_release})
+
+tracks_dataframe.info()
+```
+### Merging original Dataframe with tracks dataframe
+
+```{python}
+data_df = tracks_dataframe.merge(top_200_tracks, how='inner', on='track_id')
+data_df = data_df[['track_id', 'track_uri', 'artist_name', 'album_id', 'album_name', 'track_name', 'popularity', 'date_release', 'Position', 'Streams', 'URL', 'start_week', 'end_week']]
+
+```
+### Dropping duplicates
+```{python}
+data_df = data_df.drop_duplicates()
+data_df = data_df.reset_index(drop=True)
+data_df.info()
+```
+
+### Creating a new dataframe with audio attributes
+```{python}
+track_id = []
+acousticness = []
+analysis_url = []
+danceability = []
+duration_ms = []
+energy = []
+instrumentalness = []
+key = []
+liveness = []
+loudness = []
+mode = []
+speechiness = []
+tempo = []
+time_signature = []
+track_href = []
+valence = []
+feature_type = []
+
+track_ids_list = list(data_df['track_id'])
+
+for i in range(0,len(track_ids_list),100):
+ data = track_ids_list[i:i + 100]
+ tracks_features = sp.audio_features(data) 
+ for idx, track in enumerate(tracks_features):
+  track_id.append(track['id'])
+  acousticness.append(track['acousticness'])
+  analysis_url.append(track['analysis_url'])
+  danceability.append(track['danceability'])
+  duration_ms.append(track['duration_ms'])
+  energy.append(track['energy'])
+  instrumentalness.append(track['instrumentalness'])
+  key.append(track['key'])
+  liveness.append(track['liveness'])
+  loudness.append(track['loudness'])
+  mode.append(track['mode'])
+  speechiness.append(track['speechiness'])
+  tempo.append(track['tempo'])
+  time_signature.append(track['time_signature'])
+  track_href.append(track['track_href'])
+  valence.append(track['valence'])
+```
+
+
+```{python}
+tracks_features_df = pd.DataFrame({'track_id' : track_id, 'track_href':track_href, 'analysis_url' : analysis_url,  'acousticness' : acousticness, 'danceability' : danceability, 'duration_ms' : duration_ms, 'energy':energy, 'instrumentalness':instrumentalness, 'key':key, 'liveness':liveness, 'loudness':loudness, 'mode':mode, 'speechiness':speechiness, 'tempo':tempo, 'time_signature':time_signature, 'valence':valence})
+
+tracks_features_df.info()
+
+```
+### Merge original and track attributes with audio attributes. Then we proceed to Drop duplicates, if any. 
+```{python}
+data_featured = data_df.merge(tracks_features_df, how='inner', on='track_id')
+
+data_featured = data_featured.drop_duplicates()
+data_featured = data_featured.reset_index(drop=True)
+```
+
+```{python}
+data_featured.info()
+```
+
+
+### Converting the final merged data frame to a csv
+```{python}
+#data_featured.to_csv('C:/Users/adity/Downloads/Spotify_data/spotify_track_details.csv')
+```
+
+### Reading the new data that we scraped from Spotify Web API
+```{r}
+spotify_data = read.csv('C:/Users/adity/Documents/Spring_2023/Frameworks 2/Project_Spotify_data/spotify_track_details.csv')
+str(spotify_data)
+```
+
+### Checking for null values
+```{r}
+sum(is.na(spotify_data))
+```
+### Displaying First 10 records in the dataset
+```{r}
+head(spotify_data,10)
+```
+
+```{r}
+library(skimr)
+skim(spotify_data)
+```
+### Checking Correlation using cor()
+```{r}
+cor_matrix = cor(spotify_data[17:29])
+cor_matrix
+```
+
+```{r}
+library(reshape2)
+library(ggcorrplot)
+
+ggcorrplot(cor_matrix)
+```
+
+### Dropping the 'X' Column and saving dataframe as 'data'
+```{r}
+drop = c('X')
+data = spotify_data[,!(names(spotify_data) %in% drop)]
+
+head(data,10)
+```
+
+
+### Normalize the audio features for better analysis
+```{r}
+normalize_data = scale(data[16:28])
+
+head(normalize_data)
+```
+```{r}
+head(data)
+```
+
+#### For further clustering analysis, we will use the scaled data that we created for audio features. 
+
+
+```{r}
+
+library(dplyr)
+library(corrplot)
+library(ggplot2)
+library(ggthemes)
+library(tidyverse)
+library(kableExtra)
+library(factoextra)
+library(plotly)
+library(skimr)
+library(DT)
+library(class) 
+library(tseries) 
+library(lmtest) 
+library(forecast)
+library(TSA)
+
+```
+
+```{r}
+#spotify --> raw data set
+
+#spotify2 --> dataset with missing values imputed
+
+#spotify3 --> only numerical variables from spotify2 that are included in the clustering ('Streams', 'acousticness', 'danceability', 'duration_ms', 'energy', 'instrumentalness','key', 'liveness', 'loudness', 'mode', 'speechiness', 'tempo', 'time_signature', 'valence')
+```
+
+## Project after proposal
+```{r}
+
+#Reading the data
+
+spotify = read.csv('C:/Users/adity/Documents/Spring_2023/Frameworks 2/Project_Spotify_data/spotify_track_details.csv')
+
+head(spotify)
+names(spotify)
+```
+
+```{r}
+spotify_songs <- read.csv("C:/Users/adity/Documents/Spring_2023/Frameworks 2/Project_Spotify_data/spotify_songs.csv")
+head(spotify_songs)
+names(spotify_songs)
+```
+
+## Cleaning and Data Preparation
+```{r}
+str(spotify_songs)
+```
+```{r}
+spotify_songs <- separate(spotify_songs, track_album_release_date, c("track_album_release_year","track_album_release_month","track_album_release_day"), fill="right")
+```
+
+
+#### Assigning appropriate datatypes to the feature 
+```{r}
+spotify_songs$playlist_genre <- as.factor(spotify_songs$playlist_genre)
+spotify_songs$playlist_subgenre <- as.factor(spotify_songs$playlist_subgenre)
+spotify_songs$mode <- as.factor(spotify_songs$mode)
+```
+#### Separate and create new variables. 
+```{r}
+num_data <- spotify_songs %>% dplyr::select(where(is.numeric))
+summary(num_data)
+```
+#### All of the numeric columns were tested for range here. Except for Loudness, all of the columns are within the range specified in the dataset's description. According to the data description, normal values vary between -60 and 0 db. However, the data above had six rows with values greater than zero.
+#### However, based on the description, it was not required, but rather expected, for all values to be in the range of 0 to 1. As a result, the decision was made to retain these rows together.
+
+```{r}
+boxplot(num_data$tempo)
+```
+#### Tempo was clearly identified in the description as one of the columns that was evaluated using the average beat duration. Its Boxplot revealed outliers. However, it was left as is since there was explicit information regarding how it was calculated precisely.
+
+```{r}
+colSums(is.na(spotify_songs))
+```
+#### It is seen that there are 5 rows with no track name, track artist and album_name. These were removed from the dataset
+
+### Remove duplicate records
+```{r}
+duplicate_data <- na.omit(spotify_songs[spotify_songs$track_name == "Shape of You",])
+duplicate_data
+```
+#### We can see above that there are duplicate track_id values, with all other characteristics having identical values. As a result, these were detected and deleted.
+
+#### Following that, we discovered duplicate values in track_name, with all other characteristics similar except track_popularity and track_album. We have also eliminated such duplicate records. This is because we want each track_name to have precisely one track_popularity linked with it in order to assess the music characteristics for it. If we kept the duplicate column, we'd have the same song with different popularity numbers but the same feature values of danceability, loudness, and so on, which is improper.
+
+```{r}
+spotify_songs <- spotify_songs[!duplicated(spotify_songs$track_id),]
+spotify_songs <- spotify_songs[!duplicated(spotify_songs[,c("track_name","track_artist")]),]
+spotify_songs <- subset (spotify_songs, select = -c(1,5,6,10,11))
+clean_data <- spotify_songs[!is.na(spotify_songs$track_name),]
+colSums(is.na(clean_data))
+
+names(spotify_songs)
+```
+
+```{r}
+head(clean_data, 20) %>%
+  datatable(options = list(scrollCollapse = TRUE,scrollX = TRUE,
+  columnDefs = list(list(className = 'dt-center', targets = 1:4))
+  ))
+```
+
+### Summary
+```{r}
+skim(clean_data) %>%
+  datatable(options = list(scrollCollapse = TRUE,scrollX = TRUE,
+  columnDefs = list(list(className = 'dt-center', targets = 1:4))
+  ))
+```
+
+```{r}
+clean_data <- spotify_songs[!is.na(spotify_songs$track_name),]
+colSums(is.na(clean_data))
+```
+
+### Imputing Missing Data 
+```{r}
+library(mice)
+set.seed(617)
+spotify2 = mice::complete(mice(spotify,use.matcher=T))
+```
+
+### Isolating only numerical variables
+```{r}
+spotify3 = spotify2[,c('Streams', 'acousticness', 'danceability', 'duration_ms', 'energy', 'instrumentalness',
+                           'key', 'liveness', 'loudness', 'mode', 'speechiness', 'tempo', 'time_signature', 'valence')]
+
+```
+
+## A bit of Exploratory Data Analysis
+
+### Scaling data
+```{r}
+spotify3 = scale(spotify3)
+spotify3 = as.data.frame(spotify3)
+head(spotify3)
+```
+
+## Correlations
+```{r}
+library(corrplot)
+round(cor(spotify3), 3)
+```
+
+```{r}
+corrplot(corr = cor(spotify3),type = 'lower', col = c('red','white','green'),method = 'square',diag = F)
+```
+
+## VIF
+
+```{r}
+library(broom)
+library(dplyr)
+library(car)
+
+vif_data = spotify2[,c("Position", "Streams", 'acousticness', 'danceability', 'duration_ms', 'energy', 'instrumentalness','key', 'liveness', 'loudness', 'mode', 'speechiness', 'tempo', 'time_signature', 'valence')]
+spotify_model = lm(Position ~ .,vif_data) # build model with all variables as predictors
+summary(spotify_model)
+
+```
+#### All VIFs are less than 5 so can be included in the clustering
+
+```{r}
+## Look at VIF values 
+library(car)
+vif(spotify_model)
+```
+
+#### printing the highest VIF
+```{r}
+max(vif(spotify_model))
+```
+
+### Genre Characteristics
+```{r}
+ggplot(clean_data, aes(x=danceability, fill = playlist_genre))+ geom_density(alpha=0.4) +theme_foundation()+ labs(x="Danceability", y="Density") + guides(fill=guide_legend(title="Genres"))+ ggtitle("Danceability distribution per Genre")
+```
+#### We can see that Latin music has the highest danceability while rock music has the least
+
+```{r}
+ggplot(clean_data, aes(x=energy, fill=playlist_genre))+ geom_density(alpha=0.4) + scale_fill_brewer(palette="Set1") + theme_excel()+ labs(x="Energy", y="Density") + guides(fill=guide_legend(title="Genres"))+ ggtitle("Energy distribution per Genre")
+```
+#### This density map reveals that rock and edm have the most energy, while r&b has the least.
+
+```{r}
+ggplot(clean_data, aes(x=loudness, fill=playlist_genre))+ geom_density(alpha=0.4) + scale_fill_brewer(palette="Set2") + labs(x="Loudness", y="Density") + guides(fill=guide_legend(title="Genres"))+ theme_economist()+ ggtitle("Loudness distribution per Genre")
+```
+#### We can see from this density map that the distribution is closer to 0, indicating loud music, with edm being the loudest genre.
+
+```{r}
+ggplot(spotify_songs, aes(x=track_popularity, fill=playlist_genre))+ geom_density(alpha=0.2)+ theme_clean() + scale_fill_brewer(palette="Accent")+ labs(x="Track popularity", y="Density") + guides(fill=guide_legend(title="Genres"))+ ggtitle("Track popularity distribution per Genre")
+```
+#### This density map demonstrates that edm has a high density near 0, indicating that a large proportion of unpopular songs fall into this category. Similarly, we can see that latin music is quite popular.
+
+### In-house favorites
+### Kartikeya's Favorites
+
+```{r}
+clean_data$genre_num <- as.numeric(factor(clean_data$playlist_genre))
+
+KC_fav_artists = c("The weeknd", "Dua Lipa", "Drake", "Khalid", "Adele", "6lack")
+
+KC_fav <- clean_data %>% select(track_artist, track_popularity, danceability, energy, loudness, speechiness, acousticness, instrumentalness, liveness, valence, genre_num, tempo, duration_ms,  playlist_genre) %>%  filter(trimws(track_artist) %in% KC_fav_artists)
+
+KC_fav_columns <- names(KC_fav[c(-1,-14)])
+
+KC_pivot <- KC_fav %>% 
+  pivot_longer(cols = all_of(KC_fav_columns)) 
+
+KC_pivot %>%
+  ggplot(aes(x = name, y = value, color= playlist_genre, size = 10)) +
+  #geom_density() +
+  geom_jitter(cex = .4, aes(size = 10)) +
+  facet_wrap(~name, ncol = 3, scales = 'free') +
+  theme_classic() +
+  theme(axis.text.x = element_blank()) +
+  labs(title = 'Kartikeya`s - likings are as follows', x = '', y = '')
+```
+
+
+### Nishita's Favorites
+
+```{r}
+clean_data$genre_num <- as.numeric(factor(clean_data$playlist_genre))
+
+Nishita_fav_artists = c("KAYTRANADA", "Dua Lipa", "Drake", "J. Cole", "Disclosure", "Rihanna")
+
+Nishita_fav <- clean_data %>% select(track_artist, track_popularity, danceability, energy, loudness, speechiness, acousticness, instrumentalness, liveness, valence, genre_num, tempo, duration_ms,  playlist_genre) %>%  filter(trimws(track_artist) %in% Nishita_fav_artists)
+
+Nishita_fav_columns <- names(Nishita_fav[c(-1,-14)])
+
+Nishita_pivot <- Nishita_fav %>% 
+  pivot_longer(cols = all_of(Nishita_fav_columns)) 
+
+Nishita_pivot %>%
+  ggplot(aes(x = name, y = value, color= playlist_genre, size = 10)) +
+  #geom_density() +
+  geom_jitter(cex = .4, aes(size = 10)) +
+  facet_wrap(~name, ncol = 3, scales = 'free') +
+  theme_classic() +
+  theme(axis.text.x = element_blank()) +
+  labs(title = 'Nishita`s - likings are as follows', x = '', y = '')
+```
+
+### Kenza's Favorites
+```{r}
+clean_data$genre_num <- as.numeric(factor(clean_data$playlist_genre))
+
+Kenza_fav_artists = c("Beyonce", "Stevie Wonder", "SZA", "J. Cole", "Justin Bieber", "Kanye West", "Lauryn hill")
+
+Kenza_fav <- clean_data %>% select(track_artist, track_popularity, danceability, energy, loudness, speechiness, acousticness, instrumentalness, liveness, valence, genre_num, tempo, duration_ms,  playlist_genre) %>%  filter(trimws(track_artist) %in% Kenza_fav_artists)
+
+Kenza_fav_columns <- names(Kenza_fav[c(-1,-14)])
+
+Kenza_pivot <- Kenza_fav %>% 
+  pivot_longer(cols = all_of(Kenza_fav_columns)) 
+
+Kenza_pivot %>%
+  ggplot(aes(x = name, y = value, color= playlist_genre, size = 10)) +
+  #geom_density() +
+  geom_jitter(cex = .4, aes(size = 10)) +
+  facet_wrap(~name, ncol = 3, scales = 'free') +
+  theme_classic() +
+  theme(axis.text.x = element_blank()) +
+  labs(title = 'Kenza`s - likings are as follows', x = '', y = '')
+```
+
+### Aaditya's Favorites
+```{r}
+clean_data$genre_num <- as.numeric(factor(clean_data$playlist_genre))
+
+Aadi_fav_artists = c("Khalid", "Linkin Park", "Frank Ocean", "J. Cole", "A$AP Rocky", "Kanye West", "Arctic Monkeys")
+
+Aadi_fav <- clean_data %>% select(track_artist, track_popularity, danceability, energy, loudness, speechiness, acousticness, instrumentalness, liveness, valence, genre_num, tempo, duration_ms,  playlist_genre) %>%  filter(trimws(track_artist) %in% Aadi_fav_artists)
+
+Aadi_fav_columns <- names(Aadi_fav[c(-1,-14)])
+
+Aadi_pivot <- Aadi_fav %>% 
+  pivot_longer(cols = all_of(Aadi_fav_columns)) 
+
+Aadi_pivot %>%
+  ggplot(aes(x = name, y = value, color= playlist_genre, size = 10)) +
+  #geom_density() +
+  geom_jitter(cex = .4, aes(size = 10)) +
+  facet_wrap(~name, ncol = 3, scales = 'free') +
+  theme_classic() +
+  theme(axis.text.x = element_blank()) +
+  labs(title = 'Aaditya`s - likings are as follows', x = '', y = '')
+```
+
+
+
+## Clustering
+
+```{r}
+
+#library(cluster)
+
+#d = dist(x = spotify3, method = 'euclidean') 
+#clusters = hclust(d = d,method='ward.D2') 
+
+#options(memory.limit = 13000)
+```
+
+## K-Means Clustering
+```{r}
+set.seed(617)
+km = kmeans(x = spotify3,centers = 3,iter.max=1000,nstart=30)
+table(km$cluster)
+```
+
+### Determing No. of Clusters
+```{r}
+#Sum of Squares Plot
+
+library(ggplot2)
+
+within_ss = sapply(1:15,FUN = function(x){
+  set.seed(617)
+  kmeans(x = spotify3,centers = x,iter.max = 1000,nstart = 30)$tot.withinss})
+  
+ggplot(data=data.frame(cluster = 1:15,within_ss),aes(x=cluster,y=within_ss))+
+  geom_line(col='steelblue',size=1.2)+
+  geom_point()+
+  scale_x_continuous(breaks=seq(1,15,1))
+
+```
+
+### Ratio Plot
+
+```{r}
+ratio_ss = sapply(1:15,FUN = function(x) {
+  set.seed(617)
+  km = kmeans(x = spotify3,centers = x,iter.max = 1000,nstart = 30)
+  km$betweenss/km$totss} )
+ggplot(data=data.frame(cluster = 1:15,ratio_ss),aes(x=cluster,y=ratio_ss))+
+  geom_line(col='steelblue',size=1.2)+
+  geom_point()+
+  scale_x_continuous(breaks=seq(1,15,1))
+
+```
+
+### No. of Clusters
+```{r}
+set.seed(617)
+km = kmeans(x = spotify3,centers = 6,iter.max=1000,nstart=30)
+
+k_segments = km$cluster
+table(k_segments)
+```
+
+
+### K-Means Clustering Plot
+```{r}
+library(psych)
+temp = data.frame(cluster = factor(k_segments),
+           factor1 = fa(spotify3,nfactors = 2,rotate = 'varimax')$scores[,1],
+           factor2 = fa(spotify3,nfactors = 2,rotate = 'varimax')$scores[,2])
+ggplot(temp,aes(x=factor1,y=factor2,col=cluster))+
+  geom_point()
+```
+
+
+## Model Based Clustering
+```{r}
+
+library(mclust)
+clusters_mclust = Mclust(spotify3)
+
+summary(clusters_mclust)
+```
+
+```{r}
+clusters_mclust_5 = Mclust(spotify3,G=6)
+summary(clusters_mclust_5)
+```
+
+### Measure the BIC values 
+```{r}
+
+mclust_bic = sapply(1:15,FUN = function(x) -Mclust(spotify3,G=x)$bic)
+mclust_bic  
+
+```
+#### lower the better, 14 clusters is the lowest. 6 is the best among the lower cluster nos.
+```{r}
+ggplot(data=data.frame(cluster = 1:15,bic = mclust_bic),aes(x=cluster,y=bic))+
+  geom_line(col='steelblue',size=1.2)+
+  geom_point()+
+  scale_x_continuous(breaks=seq(1,15,1))
+
+```
+
+### 6 Clusters
+```{r}
+
+m_clusters_6 = Mclust(data = spotify3,G = 6)
+m_segments = m_clusters_6$classification
+table(m_segments)
+
+```
+
+### Model-Based Clustering Plot
+```{r}
+temp1 = data.frame(cluster = factor(m_segments),
+           factor1 = fa(spotify3,nfactors = 2,rotate = 'varimax')$scores[,1],
+           factor2 = fa(spotify3,nfactors = 2,rotate = 'varimax')$scores[,2])
+ggplot(temp1,aes(x=factor1,y=factor2,col=cluster))+
+  geom_point()
+```
+
+
+## Compare the different clustering models
+```{r}
+spotify4 = cbind(spotify3, k_segments,m_segments)
+head(spotify4)
+```
+
+```{r}
+library(dplyr)
+spotify4 %>%
+  select(Streams:valence,k_segments)%>%
+  group_by(k_segments)%>%
+  summarize_all(function(x) round(mean(x,na.rm=T),2))%>%
+  data.frame()
+```
+
+```{r}
+library(dplyr); library(ggplot2); library(tidyr)
+spotify4 %>%
+  select(Streams:valence,k_segments)%>%
+  group_by(k_segments)%>%
+  summarize_all(function(x) round(mean(x,na.rm=T),2))%>%
+  gather(key = var,value = value,Streams:valence)%>%
+  ggplot(aes(x=var,y=value,fill=factor(k_segments)))+
+  geom_col(position='dodge')+
+  coord_flip()
+```
+
+```{r}
+
+library(ggplot2)
+tab = prop.table(table(spotify4$k_segments,spotify4[,14]),1)
+tab2 = data.frame(round(tab,2))
+head(tab2)
+```
+
+```{r}
+library(RColorBrewer)
+ggplot(data=tab2,aes(x=Var2,y=Var1,fill=Freq))+
+  geom_tile()+
+  geom_text(aes(label=Freq),size=6)+
+  xlab(label = '')+
+  ylab(label = '')+
+  scale_fill_gradientn(colors=brewer.pal(n=9,name = 'Pastel1'))
+```
+
+
+## Graphical comparison of all clustering models
+```{r}
+
+
+spotify4 %>%
+  select(Streams:valence,k_segments)%>%
+  group_by(k_segments)%>%
+  summarize_all(function(x) round(mean(x,na.rm=T),2))%>%
+  gather(key = var,value = value,Streams:valence)%>%
+  ggplot(aes(x=var,y=value,fill=factor(k_segments)))+
+  geom_col(position='dodge')+
+  coord_flip()
+
+spotify4 %>%
+  select(Streams:valence,m_segments)%>%
+  group_by(m_segments)%>%
+  summarize_all(function(x) round(mean(x,na.rm=T),2))%>%
+  gather(key = var,value = value,Streams:valence)%>%
+  ggplot(aes(x=var,y=value,fill=factor(m_segments)))+
+  geom_col(position='dodge')+
+  coord_flip()
+```
+
+### K-MEANS CLUSTERING - INSIGHTS 
+## Box Plots
+```{r}
+kmeans <- kmeans(spotify3, 6)
+spotify2$cluster <- kmeans$cluster
+tracks_clustered <- spotify2[order(spotify2$start_week), ]
+
+
+ggplot(tracks_clustered, aes(cluster, acousticness)) +
+  geom_boxplot(fill = 'red') +
+  facet_wrap(vars(cluster))
+
+ggplot(tracks_clustered, aes(cluster, danceability)) +
+  geom_boxplot(fill = 'blue') +
+  facet_wrap(vars(cluster))
+
+ggplot(tracks_clustered, aes(cluster, energy)) +
+  geom_boxplot(fill = 'green') +
+  facet_wrap(vars(cluster))
+
+ggplot(tracks_clustered, aes(cluster, instrumentalness)) +
+  geom_boxplot(fill = 'yellow') +
+  facet_wrap(vars(cluster))
+
+ggplot(tracks_clustered, aes(cluster, liveness)) +
+  geom_boxplot(fill = 'purple') +
+  facet_wrap(vars(cluster))
+
+ggplot(tracks_clustered, aes(cluster, loudness)) +
+  geom_boxplot(fill = 'orange') +
+  facet_wrap(vars(cluster))
+
+ggplot(tracks_clustered, aes(cluster, speechiness)) +
+  geom_boxplot(fill = 'pink') +
+  facet_wrap(vars(cluster))
+
+ggplot(tracks_clustered, aes(cluster, valence)) +
+  geom_boxplot(fill = 'lightblue') +
+  facet_wrap(vars(cluster))
+```
+
+## CLUSTER 6 - MOST POPULAR ARTISTS
+```{r}
+#tracks_clustered %>%
+ # select(cluster, artist_name, popularity)
+  #group_by(cluster)
+  
+tracks_clustered %>%
+  select(cluster, Streams, popularity)%>%
+  group_by(cluster)%>%
+  summarize_all(function(x) round(median(x,na.rm=T),2))%>%
+  data.frame()
+
+tracks_clustered %>%
+  select(cluster, Streams, popularity)%>%
+  group_by(cluster)%>%
+  summarize_all(function(x) round(mean(x,na.rm=T),2))%>%
+  data.frame()
+
+
+tracks_clustered_cluster6 = subset(tracks_clustered, cluster ==6)
+
+desc_popularity = tracks_clustered_cluster6 %>%
+  arrange(desc(popularity))
+
+
+unique(desc_popularity$artist_name)
+
+#Most pop - Billie Eilish, Queen, Khalid, Don Toliver, Frank Ocean, Future, Harry Styles
+```
+
+## Time Series
+
+#### Rock music saw a drop in popularity in the 2010s. Spotify data reveals a nearly same pattern. Here is a time series study of Rock music's popularity over the years, as well as a prognosis for the next two years based on the songs in this dataset.
+
+```{r}
+head(clean_data, 20) %>%
+  datatable(options = list(scrollCollapse = TRUE,scrollX = TRUE,
+  columnDefs = list(list(className = 'dt-center', targets = 1:4))
+  ))
+
+```
+
+```{r}
+genre_year = clean_data %>%
+  filter(track_album_release_year > '1985') %>% 
+  group_by(playlist_genre, track_album_release_year) %>% 
+  summarise(avg_popularity = c(mean(track_popularity)), .groups = 'drop')
+
+genre_year$track_album_release_year <- as.numeric(as.character(genre_year$track_album_release_year))
+
+ggplot(genre_year, aes(x = track_album_release_year, y = avg_popularity)) + 
+  geom_line(aes(color = playlist_genre), size = 1) +
+  theme_minimal()
+```
+#### Above is time series plot for popularity of songs grouped by various genre from 1985 to 2020.
+
+```{r}
+rock_popularity <- genre_year %>% 
+  filter(playlist_genre == 'rock' & track_album_release_year > '1975') %>% 
+  select(track_album_release_year, avg_popularity)
+
+ts_data <- rock_popularity$avg_popularity
+plot.ts(ts_data)
+```
+#### Because the plot appears to have non-constant variance and mean, we utilize Box Cox to stabilize the variance. The figure, however, shows no signs of seasonality or pattern.
+
+```{r}
+bc <- BoxCox.ar(ts_data)
+```
+
+```{r}
+bc$lambda[which.max(bc$loglike)]
+```
+#### The lambda value is 0.7. Thus both log and sqrt transformations are taken and checked for best fit.
+
+```{r}
+par(mfrow=c(1,2))
+plot.ts(sqrt(ts_data))
+plot.ts(log(ts_data))
+```
+#### The variance is log data works better than sqrt. Thus, log transformation of the time series is chosen.
+
+```{r}
+par(mfrow=c(1,2))
+acf(log(ts_data))
+pacf(log(ts_data))
+```
+#### Examining the ACF and PACF charts to see if they correspond to a theoretical time series model. ACF terminates at lag 5 while PACF terminates at latency 2. EACF is then used to gain a better understanding of the model.
+
+```{r}
+adf.test(log(ts_data))
+```
+#### Augmented Dickey-Fuller Test
+#### - Null hypothesis : The series is non stationary
+#### - Alternative hypothesis : The series is stationary
+#### The presence of p-values larger than 0.05 indicates that the series is non-stationary. As a result, the series is made stationary by using diff()..
+
+
+```{r}
+ts(diff(log(ts_data)))
+adf.test(diff(log(ts_data)))
+```
+####The transformed plot appears to be stationary in variance and in mean.
+
+```{r}
+par(mfrow=c(1,2))
+acf(diff(log(ts_data)))
+pacf(diff(log(ts_data)))
+```
+#### ACF and PACF plots shows the series cut off at lag 1 in both. EACF is further considered to finalise a model for transformed data.
+
+```{r}
+eacf(diff(log(ts_data)), ar.max = 3)
+```
+
+#### EACF shows better fits for ARIMA(0,1,1), ARIMA(1,1,0) and ARIMA(1,1,1). AIC values of all three models are taken and checked for better fit.
+```{r}
+fit1= arima(ts(diff(log(ts_data))), order = c(1,1,1))
+coeftest(fit1)
+```
+
+```{r}
+fit1
+```
+
+```{r}
+fit2 = arima(ts(diff(log(ts_data))), order = c(0,1,1))
+coeftest(fit2)
+```
+
+```{r}
+fit2
+```
+
+```{r}
+fit3= arima(ts(diff(log(ts_data))), order = c(1,1,0))
+coeftest(fit3)
+```
+
+```{r}
+fit3
+```
+
+#### Among models ARIMA(1,1,1), ARIMA(0,1,1) and ARIMA(1,1,0), ARIMA(1,1,0) has the lowest AIC value of -1.87. Thus, ARIMA(1,1,0) is taken further for residual diagnostics.
+
+```{r}
+checkresiduals(fit3)
+```
+
+#### - It is seen that residual plot has constant mean and variance and acf and pacf plot resemble white noise.
+
+#### - Ljung-Box test
+
+#### - Null hypothesis: There is no auto-correlation between residuals.
+
+#### - Alternative hypothesis: There is auto-correlation between residuals.
+
+#### - Also, p value is greater than 0.05 and null hypothesis cannot be rejected here. Hence this is in sync with the acf and pacf which shows that the residuals behave like white noise and have no correlation
+
+
+### ARIMA(1,1,0) model is concluded for this time series
+
+```{r}
+fit= Arima(ts(diff(log(ts_data))), order = c(1,1,0))
+plot(forecast(fit, h = 5))
+```
+#### The above plot shows the popularity forecast for next two years for Rock music with respect to the Spotify data for the next 2 years where we can see that there is a continuing steady decline in rock genre.
+
+
